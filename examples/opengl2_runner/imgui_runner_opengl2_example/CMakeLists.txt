@@ -8,3 +8,6 @@ target_link_libraries(imgui_runner_opengl2_example imgui_runner_opengl2)
 install(TARGETS imgui_runner_opengl2_example
 DESTINATION ${CMAKE_INSTALL_PREFIX}/bin
 )
+install(FILES runner_opengl2_example.cpp
+DESTINATION ${CMAKE_INSTALL_PREFIX}/src
+)
