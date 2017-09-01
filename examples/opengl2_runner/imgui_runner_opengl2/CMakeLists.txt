@@ -20,24 +20,6 @@ target_include_directories(imgui_runner_opengl2
   ${CMAKE_CURRENT_LIST_DIR}/../../opengl2_example/
 )
 
-install(FILES
-  ${CMAKE_CURRENT_LIST_DIR}/../../../imgui.h
-  ${CMAKE_CURRENT_LIST_DIR}/../../../imgui_internal.h
-  ${CMAKE_CURRENT_LIST_DIR}/../../../imconfig.h
-  imgui_gl2_runner.h
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/include/imgui
-)
-install(FILES
-  ${CMAKE_CURRENT_LIST_DIR}/../../../imgui_demo.cpp
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/imgui_demo_src
-)
-install(TARGETS imgui_runner_opengl2
-  DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
-)
-install(DIRECTORY
-  ${CMAKE_CURRENT_LIST_DIR}/../../../extra_fonts
-  DESTINATION ${CMAKE_INSTALL_PREFIX}
-)
 
 # OpenGL dependency via find_package
 find_package(OpenGL REQUIRED)
@@ -81,7 +63,24 @@ else(HUNTER_ENABLED)
 endif(HUNTER_ENABLED)
 
 
-
-
-
-
+#
+# install
+#
+install(FILES
+${CMAKE_CURRENT_LIST_DIR}/../../../imgui.h
+${CMAKE_CURRENT_LIST_DIR}/../../../imgui_internal.h
+${CMAKE_CURRENT_LIST_DIR}/../../../imconfig.h
+imgui_gl2_runner.h
+DESTINATION ${CMAKE_INSTALL_PREFIX}/include/imgui
+)
+install(FILES
+${CMAKE_CURRENT_LIST_DIR}/../../../imgui_demo.cpp
+DESTINATION ${CMAKE_INSTALL_PREFIX}/imgui_demo_src
+)
+install(TARGETS imgui_runner_opengl2
+DESTINATION ${CMAKE_INSTALL_PREFIX}/lib
+)
+install(DIRECTORY
+${CMAKE_CURRENT_LIST_DIR}/../../../extra_fonts
+DESTINATION ${CMAKE_INSTALL_PREFIX}
+)
