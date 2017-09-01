@@ -13,6 +13,17 @@ endif()
 
 project(imgui)
 
+include("cmake/ucm.cmake")
+option(IMGUI_STATIC_RUNTIME "Force static runtime" OFF)
+option(IMGUI_DYNAMIC_RUNTIME "Force dynamic runtime" OFF)
+if(IMGUI_STATIC_RUNTIME)
+  ucm_set_runtime(STATIC)
+endif()
+if(IMGUI_DYNAMIC_RUNTIME)
+  ucm_set_runtime(DYNAMIC)
+endif()
+
+
 # examples/opengl2_runner is a ready to use runner for imgui, using the opengl2 backend.
 # It will automatically link to imgui & glfw 
 # Typical usage : 
