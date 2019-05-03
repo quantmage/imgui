@@ -230,6 +230,14 @@ extern IMGUI_API ImGuiContext* GImGui;  // Current implicit context pointer
 # include "imgui_stacklayout_internal.h"
 #endif
 
+//-------------------------------------------------------------------------
+// [SECTION] Stack Layout includes
+//-------------------------------------------------------------------------
+
+#if IMGUI_HAS_STACK_LAYOUT
+# include "imgui_stacklayout_internal.h"
+#endif
+
 //-----------------------------------------------------------------------------
 // [SECTION] Macros
 //-----------------------------------------------------------------------------
