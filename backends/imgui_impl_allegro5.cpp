@@ -45,6 +45,7 @@
 
 #include <stdint.h>     // uint64_t
 #include <cstring>      // memcpy
+#include <math.h>       // isinf
 #include "imgui.h"
 #include "imgui_impl_allegro5.h"
 
@@ -455,6 +456,24 @@ static void ImGui_ImplAllegro5_UpdateKeyModifiers()
     io.AddKeyEvent(ImGuiKey_ModSuper, al_key_down(&keys, ALLEGRO_KEY_LWIN) || al_key_down(&keys, ALLEGRO_KEY_RWIN));
 }
 
+void ImGui_ImplAllegro5_WaitForEvent(ALLEGRO_EVENT_QUEUE* queue)
+{
+    if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode))
+        return;
+
+    int display_flags = al_get_display_flags(g_Display);
+    bool window_is_hidden = display_flags & ALLEGRO_MINIMIZED;
+    double waiting_time = window_is_hidden ? INFINITY : ImGui::GetEventWaitingTime();
+    if (waiting_time > 0.0)
+    {
+        if (isinf(waiting_time))
+            al_wait_for_event(queue, NULL);
+        else
+            al_wait_for_event_timed(queue, NULL, waiting_time);
+    }
+}
+
+
 // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
 // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
 // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
@@ -463,6 +482,8 @@ bool ImGui_ImplAllegro5_ProcessEvent(ALLEGRO_EVENT* ev)
 {
     ImGuiIO& io = ImGui::GetIO();
     ImGui_ImplAllegro5_Data* bd = ImGui_ImplAllegro5_GetBackendData();
+
+    io.FrameCountSinceLastInput = 0;
 
     switch (ev->type)
     {
