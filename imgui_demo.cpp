@@ -192,386 +192,392 @@ typedef void (*ImGuiDemoCallback)(bool clicked, const char* file, int line_numbe
 // GImGuiDemoCallback: an optional external callback (if not present, DemoCodeWindow will be used)
 ImGuiDemoCallback GImGuiDemoCallback = NULL;
 
-#ifdef DEMOMARKER_SHOWCODEWINDOW
-// DemoCodeWindow: simple code viewer for imgui_demo.cpp (reads imgui_demo.cpp from its compile time location)
-class DemoCodeWindow
+#define DEMO_MARKER_MACRO_NAME "DEMO_MARKER"
+
+namespace DemoMarkerTools
 {
-public:
-    DemoCodeWindow() :
-        EditorLine(0),
-        IsWindowOpened(false)
+#ifdef DEMOMARKER_SHOWCODEWINDOW
+    // DemoCodeWindow: simple code viewer for imgui_demo.cpp (reads imgui_demo.cpp from its compile time location)
+    class DemoCodeWindow
     {
-        ReadSourceCode();
-        MakeSourceLineNumbersStr();
-    }
-
-    ~DemoCodeWindow()
-    {
-        if (SourceCode)
-            IM_DELETE(SourceCode);
-        if (SourceLineNumbersStr)
-            IM_DELETE(SourceLineNumbersStr);
-    }
-
-    void DemoCallback(bool clicked, const char* /*file*/, int line_number, const char* /*demo_title*/)
-    {
-        if (clicked)
+    public:
+        DemoCodeWindow() :
+            EditorLine(0),
+            IsWindowOpened(false)
         {
-            IsWindowOpened = true;
-            EditorLine = line_number;
+            ReadSourceCode();
+            MakeSourceLineNumbersStr();
         }
-    }
 
-    void Gui()
-    {
-        if (GImGuiDemoCallback)
-            return;
-        if (SourceCode == NULL)
-            return;
-        if (!IsWindowOpened)
-            return;
-
-        // Default position/size of the code window case there's no data in the .ini file.
-        // By default, it appears to the left of the demo window.
-        ImGuiViewport* main_viewport = ImGui::GetMainViewport();
-        ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 100, main_viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
-        ImGui::SetNextWindowSize(ImVec2(520.f, 680), ImGuiCond_FirstUseEver);
-        if (ImGui::Begin("imgui_demo.cpp - code", &IsWindowOpened))
+        ~DemoCodeWindow()
         {
-            ImGui::BeginChild("Code Child");
-            if (EditorLine >= 0)
+            if (SourceCode)
+                IM_DELETE(SourceCode);
+            if (SourceLineNumbersStr)
+                IM_DELETE(SourceLineNumbersStr);
+        }
+
+        void DemoCallback(bool clicked, const char* /*file*/, int line_number, const char* /*demo_title*/)
+        {
+            if (clicked)
             {
-                ImGui::SetScrollY(EditorLine * ImGui::GetFontSize() - ImGui::GetFontSize());
-                ImGui::SetScrollX(0.f);
-                EditorLine = -1;
+                IsWindowOpened = true;
+                EditorLine = line_number;
             }
-            ImGui::TextUnformatted(SourceLineNumbersStr);
-            ImGui::SameLine();
-            ImGui::TextUnformatted(SourceCode);
-            ImGui::EndChild();
         }
-        ImGui::End();
-    }
 
-private:
-    void ReadSourceCode()
-    {
+        void Gui()
+        {
+            if (GImGuiDemoCallback)
+                return;
+            if (SourceCode == NULL)
+                return;
+            if (!IsWindowOpened)
+                return;
+
+            // Default position/size of the code window case there's no data in the .ini file.
+            // By default, it appears to the left of the demo window.
+            ImGuiViewport* main_viewport = ImGui::GetMainViewport();
+            ImGui::SetNextWindowPos(ImVec2(main_viewport->WorkPos.x + 100, main_viewport->WorkPos.y + 20), ImGuiCond_FirstUseEver);
+            ImGui::SetNextWindowSize(ImVec2(520.f, 680), ImGuiCond_FirstUseEver);
+            if (ImGui::Begin("imgui_demo.cpp - code", &IsWindowOpened))
+            {
+                ImGui::BeginChild("Code Child");
+                if (EditorLine >= 0)
+                {
+                    ImGui::SetScrollY(EditorLine * ImGui::GetFontSize() - ImGui::GetFontSize());
+                    ImGui::SetScrollX(0.f);
+                    EditorLine = -1;
+                }
+                ImGui::TextUnformatted(SourceLineNumbersStr);
+                ImGui::SameLine();
+                ImGui::TextUnformatted(SourceCode);
+                ImGui::EndChild();
+            }
+            ImGui::End();
+        }
+
+    private:
+        void ReadSourceCode()
+        {
 #ifdef __EMSCRIPTEN__
-        const char* source_file = "code/imgui/imgui_demo.cpp";
+        	const char* source_file = "code/imgui/imgui_demo.cpp";
 #else
-        const char* source_file = __FILE__;
+        	const char* source_file = __FILE__;
 #endif
-        FILE* f = fopen(source_file, "r");
-        if (!f)
-        {
-            SourceCode = NULL;
-            return;
-        }
-        fseek(f, 0, SEEK_END);
-        size_t file_size = (size_t)ftell(f);
-        SourceCode = (char *)IM_ALLOC(file_size * sizeof(char));
-        rewind(f);
-        fread(SourceCode, sizeof(char), file_size, f);
-    }
-
-    void MakeSourceLineNumbersStr()
-    {
-        if (SourceCode == NULL)
-            SourceLineNumbersStr = NULL;
-
-        size_t nb_source_lines = 0;
-        {
-            char* c = SourceCode;
-            while (*c != '\0')
+			FILE* f = fopen(source_file, "r");
+            if (!f)
             {
-                if (*c == '\n')
-                    ++nb_source_lines;
-                ++c;
+                SourceCode = NULL;
+                return;
+            }
+            fseek(f, 0, SEEK_END);
+            size_t file_size = (size_t)ftell(f);
+            SourceCode = (char *)IM_ALLOC(file_size * sizeof(char));
+            rewind(f);
+            fread(SourceCode, sizeof(char), file_size, f);
+        }
+
+        void MakeSourceLineNumbersStr()
+        {
+            if (SourceCode == NULL)
+                SourceLineNumbersStr = NULL;
+
+            size_t nb_source_lines = 0;
+            {
+                char* c = SourceCode;
+                while (*c != '\0')
+                {
+                    if (*c == '\n')
+                        ++nb_source_lines;
+                    ++c;
+                }
+            }
+
+            size_t line_length = 6;
+            SourceLineNumbersStr = (char *)IM_ALLOC((nb_source_lines * line_length + 1) * sizeof(char));
+            SourceLineNumbersStr[0] = '\0';
+            for (size_t i = 0; i < nb_source_lines; ++i)
+            {
+                char line_content[100];
+                snprintf(line_content, line_length + 1, "%5i\n", (int)(i + 1));
+                strcat(SourceLineNumbersStr, line_content);
             }
         }
 
-        size_t line_length = 6;
-        SourceLineNumbersStr = (char *)IM_ALLOC((nb_source_lines * line_length + 1) * sizeof(char));
-        SourceLineNumbersStr[0] = '\0';
-        for (size_t i = 0; i < nb_source_lines; ++i)
-        {
-            char line_content[100];
-            snprintf(line_content, line_length + 1, "%5i\n", (int)(i + 1));
-            strcat(SourceLineNumbersStr, line_content);
-        }
-    }
-
-private:
-    char*  SourceCode;             // Full source code of imgui_demo.cpp, read from its compile time location
-    char*  SourceLineNumbersStr;   // A String that contains line numbers, displayed to the left of the source code
-    int    EditorLine;             // Currently displayed editor line (can be set via DemoCallback)
-    bool   IsWindowOpened;         // Is the code window opened?
-};
+    private:
+        char*  SourceCode;             // Full source code of imgui_demo.cpp, read from its compile time location
+        char*  SourceLineNumbersStr;   // A String that contains line numbers, displayed to the left of the source code
+        int    EditorLine;             // Currently displayed editor line (can be set via DemoCallback)
+        bool   IsWindowOpened;         // Is the code window opened?
+    };
 #endif // #ifdef DEMOMARKER_SHOWCODEWINDOW
 
-// The DemoMarkersRegistry class stores the boundings for the different calls to the DEMO_MARKER macro.
-// It handles the calls to 'GImGuiDemoCallback', as well as the display and handling of the
-// "Help/Code lookup" button. It also can display a DemoCodeWindow (if the source code is available)
-class DemoMarkersRegistry
-{
-#define DEMO_PICKUP_LABEL "Help/Code Lookup"
-private:
-    // A ZoneBoundings specifies a rectangular bounding for the widgets whose code is given
-    // *after* a call to DEMO_MARKER. This bounding will extend down to the next DEMO_MARKER macro call.
-    // It always occupies the full width of the current window.
-    struct ZoneBoundings
+    // The DemoMarkersRegistry class stores the boundings for the different calls to the DEMO_MARKER macro.
+    // It handles the calls to 'GImGuiDemoCallback', as well as the display and handling of the
+    // "Help/Code lookup" button. It also can display a DemoCodeWindow (if the source code is available)
+    class DemoMarkersRegistry
     {
-        ZoneBoundings() : SourceLineNumber(-1), MinY(-1.0f), MaxY(-1.0f), Window(NULL) {}
-        int SourceLineNumber; // Source code location
-        float MinY, MaxY;     // Location of this zone inside its parent window
-        ImGuiWindow* Window;  // Current window when DEMO_MARKER was called
-    };
+#define DEMO_PICKUP_LABEL "Help/Code Lookup"
+    private:
+        // A ZoneBoundings specifies a rectangular bounding for the widgets whose code is given
+        // *after* a call to DEMO_MARKER. This bounding will extend down to the next DEMO_MARKER macro call.
+        // It always occupies the full width of the current window.
+        struct ZoneBoundings
+        {
+            ZoneBoundings() : SourceLineNumber(-1), MinY(-1.0f), MaxY(-1.0f), Window(NULL) {}
+            int SourceLineNumber; // Source code location
+            float MinY, MaxY;     // Location of this zone inside its parent window
+            ImGuiWindow* Window;  // Current window when DEMO_MARKER was called
+        };
 
-public:
-    DemoMarkersRegistry() :
-        AllZonesBoundings(),
-        PreviousZoneSourceLine(-1),
+    public:
+        DemoMarkersRegistry() :
+            AllZonesBoundings(),
+            PreviousZoneSourceLine(-1),
 #ifdef DEMOMARKER_SHOWCODEWINDOW
-        CodeWindow(),
+            CodeWindow(),
 #endif
-        IsPicking(false)
+            IsPicking(false)
         {}
 
-    // DemoMarker is the method which is called by the DEMO_MARKER macro
-    void DemoMarker(const char* file, int line_number, const char *demo_title)
-    {
-        // This will store the bounding for the next widgets, and this bounding will extend until the next call to DemoMarker
-        StoreZoneBoundings(line_number);
-        ZoneBoundings& zone_boundings = GetZoneBoundingsForLine(line_number);
-
-        // Handle mouse and keyboard actions if the zone is hovered
-        bool is_mouve_hovering_zone = IsMouseHoveringZoneBoundings(zone_boundings);
-        if (! is_mouve_hovering_zone)
-            return;
-
-        bool is_keyboard_shortcut_active = (ImGui::GetIO().KeyShift && ImGui::GetIO().KeyCtrl);
-        bool shall_highlight = IsPicking || is_keyboard_shortcut_active;
-
-        if (shall_highlight)
+        // DemoMarker is the method which is called by the DEMO_MARKER macro
+        void DemoMarker(const char* file, int line_number, const char *demo_title)
         {
-            HighlightZone(zone_boundings);
+            // This will store the bounding for the next widgets, and this bounding will extend until the next call to DemoMarker
+            StoreZoneBoundings(line_number);
+            ZoneBoundings& zone_boundings = GetZoneBoundingsForLine(line_number);
+
+            // Handle mouse and keyboard actions if the zone is hovered
+            bool is_mouve_hovering_zone = IsMouseHoveringZoneBoundings(zone_boundings);
+            if (! is_mouve_hovering_zone)
+                return;
+
+            bool is_keyboard_shortcut_active = (ImGui::GetIO().KeyShift && ImGui::GetIO().KeyCtrl);
+            bool shall_highlight = IsPicking || is_keyboard_shortcut_active;
+
+            if (shall_highlight)
+            {
+                HighlightZone(zone_boundings);
 #ifdef DEMOMARKER_RIGHTCLICK
-            ImGui::SetTooltip(
-                "DEMO_MARKER(\"%s\") at %s:%d\n\n"
-                "*Right* click or press \"Esc\" to exit this mode",
-                demo_title, FileBaseName(file),line_number);
+                ImGui::SetTooltip(
+                    DEMO_MARKER_MACRO_NAME "(\"%s\") at %s:%d\n\n"
+                    "*Right* click or press \"Esc\" to exit this mode",
+                    demo_title, FileBaseName(file),line_number);
 #else
-            ImGui::SetTooltip(
-                "DEMO_MARKER(\"%s\") at %s:%d\n\n"
+                ImGui::SetTooltip(
+                DEMO_MARKER_MACRO_NAME "(\"%s\") at %s:%d\n\n"
                 "Click or press \"Esc\" to exit this mode",
                 demo_title, FileBaseName(file),line_number);
 #endif
+            }
+
+            ;
+#ifdef DEMOMARKER_RIGHTCLICK
+            bool clicked = ImGui::IsMouseClicked(1);
+#else
+            bool clicked = ImGui::IsMouseClicked(0);
+#endif
+            DemoCallback(clicked || is_keyboard_shortcut_active, file, line_number, demo_title);
+
+            if (clicked)
+                IsPicking = false;
         }
 
-        ;
-#ifdef DEMOMARKER_RIGHTCLICK
-        bool clicked = ImGui::IsMouseClicked(1);
-#else
-        bool clicked = ImGui::IsMouseClicked(0);
-#endif
-        DemoCallback(clicked || is_keyboard_shortcut_active, file, line_number, demo_title);
-
-        if (clicked)
-            IsPicking = false;
-    }
-
-    // StartFrame() Should be called once per frame
-    void StartFrame()
-    {
-        PreviousZoneSourceLine = -1;
-#ifdef DEMOMARKER_SHOWCODEWINDOW
-        CodeWindow.Gui();
-#endif
-    }
-
-    // ShowPickButton() will show the "Help/Code Lookup" button and handles the zone picking
-    void ShowPickButton()
-    {
-        if (ImGui::Button(DEMO_PICKUP_LABEL))
-            IsPicking = true;
-        if (IsPicking && ImGui::IsKeyPressedMap(ImGuiKey_Escape))
+        // StartFrame() Should be called once per frame
+        void StartFrame()
         {
-            IsPicking = false;
+            PreviousZoneSourceLine = -1;
+#ifdef DEMOMARKER_SHOWCODEWINDOW
+            CodeWindow.Gui();
+#endif
+        }
+
+        // ShowPickButton() will show the "Help/Code Lookup" button and handles the zone picking
+        void ShowPickButton()
+        {
+            if (ImGui::Button(DEMO_PICKUP_LABEL))
+                IsPicking = true;
+            if (IsPicking && ImGui::IsKeyPressedMap(ImGuiKey_Escape))
+            {
+                IsPicking = false;
 #ifndef DEMOMARKER_RIGHTCLICK
                 ImGui::ClearActiveID();
 #endif
-        }
-        if (ImGui::IsItemHovered())
-            ImGui::SetTooltip(
-                "Press this button and hover any demo to pinpoint its location inside the code.\n"
-                "\n"
-                "(you can also press Ctrl-Shift at any time)"
-            );
+            }
+            if (ImGui::IsItemHovered())
+                ImGui::SetTooltip(
+                    "Press this button and hover any demo to pinpoint its location inside the code.\n"
+                    "\n"
+                    "(you can also press Ctrl-Shift at any time)"
+                );
 
-        if (IsPicking)
-        {
+            if (IsPicking)
+            {
 #ifdef DEMOMARKER_RIGHTCLICK
-            ImGui::SetTooltip(
-                "Hover any demo and *right* click to pinpoint its location.\n"
-                "Press \"Esc\" to exit this mode"
-            );
+                ImGui::SetTooltip(
+                    "Hover any demo and *right* click to pinpoint its location.\n"
+                    "Press \"Esc\" to exit this mode"
+                );
 #else
-            ImGui::SetTooltip(
+                ImGui::SetTooltip(
                     "Hover any demo and click to pinpoint its location.\n"
                     "Press \"Esc\" to exit this mode"
                 );
 #endif
-        }
+            }
 
 #ifndef DEMOMARKER_RIGHTCLICK
-        if (IsPicking)
+            if (IsPicking)
             ImGui::SetActiveID(ImGui::GetID(DEMO_PICKUP_LABEL), ImGui::GetCurrentWindow());
 #endif
-    }
-
-private:
-    void DemoCallback(bool clicked, const char* file, int line_number, const char* demo_title)
-    {
-        if (GImGuiDemoCallback)
-            GImGuiDemoCallback(clicked, file, line_number, demo_title);
-        else
-        {
-#ifdef DEMOMARKER_SHOWCODEWINDOW
-            CodeWindow.DemoCallback(clicked, file, line_number, demo_title);
-#endif
         }
-    }
 
-    void StoreZoneBoundings(int line_number)
-    {
-        // Store info about marker
-        ZoneBoundings current_zone_boundings;
+    private:
+        void DemoCallback(bool clicked, const char* file, int line_number, const char* demo_title)
+        {
+            if (GImGuiDemoCallback)
+                GImGuiDemoCallback(clicked, file, line_number, demo_title);
+            else
+            {
+#ifdef DEMOMARKER_SHOWCODEWINDOW
+                CodeWindow.DemoCallback(clicked, file, line_number, demo_title);
+#endif
+            }
+        }
+
+        void StoreZoneBoundings(int line_number)
+        {
+            // Store info about marker
+            ZoneBoundings current_zone_boundings;
+            {
+                if (HasZoneBoundingsForLine(line_number))
+                    current_zone_boundings = GetZoneBoundingsForLine(line_number);
+                else
+                    current_zone_boundings.SourceLineNumber = line_number;
+            }
+
+            // Store MinY position for current marker
+            current_zone_boundings.Window = ImGui::GetCurrentWindow();
+            current_zone_boundings.MinY = ImGui::GetCursorPos().y;
+
+            // Store current marker in list
+            SetZoneBoundingsForLine(line_number, current_zone_boundings);
+
+            // Store Max position for previous marker
+            if (HasZoneBoundingsForLine(PreviousZoneSourceLine))
+            {
+                ZoneBoundings& previous_zone_boundings = GetZoneBoundingsForLine(PreviousZoneSourceLine);
+                if (previous_zone_boundings.Window == ImGui::GetCurrentWindow())
+                    previous_zone_boundings.MaxY = ImGui::GetCursorPos().y;
+            }
+
+            PreviousZoneSourceLine = line_number;
+        }
+
+        bool IsMouseHoveringZoneBoundings(const ZoneBoundings& zone_boundings)
+        {
+            if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
+                return false;
+            float y_mouse = ImGui::GetIO().MousePos.y - ImGui::GetWindowPos().y + ImGui::GetScrollY();
+            return (
+                (y_mouse >= zone_boundings.MinY)
+                && (    (y_mouse < zone_boundings.MaxY)
+                        || (zone_boundings.MaxY < 0.f)
+                )
+            );
+        }
+
+        void HighlightZone(const ZoneBoundings zone_boundings)
+        {
+            // tl_dim / br_dim : top_left and bottom_right corners of the dimmed zone.
+            ImVec2 tl_dim = ImVec2 (0.f, 0.f);
+            ImVec2 br_dim = ImGui::GetWindowViewport()->Size;
+
+            // tl_zone / br_zone: top_left and bottom_right corner of the highlighted zone
+            ImVec2 tl_zone(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y + zone_boundings.MinY - ImGui::GetScrollY());
+            float maxY = zone_boundings.MaxY > 0.f ? zone_boundings.MaxY : ImGui::GetWindowHeight();
+            ImVec2 br_zone(ImGui::GetWindowPos().x + ImGui::GetWindowWidth(), ImGui::GetWindowPos().y + maxY - ImGui::GetScrollY());
+
+            ImDrawList* draw_list = ImGui::GetForegroundDrawList();
+            ImU32 dim_color = IM_COL32(127, 127, 127, 127);
+
+            draw_list->AddRectFilled(tl_dim, ImVec2(br_dim.x, tl_zone.y), dim_color);
+
+            draw_list->AddRectFilled(ImVec2(tl_dim.x, tl_zone.y), ImVec2(tl_zone.x, br_zone.y), dim_color);
+            draw_list->AddRectFilled(ImVec2(br_zone.x, tl_zone.y), ImVec2(br_dim.x, br_zone.y), dim_color);
+
+            draw_list->AddRectFilled(ImVec2(tl_dim.x, br_zone.y), ImVec2(br_dim.x, br_dim.y), dim_color);
+        }
+
+        bool HasZoneBoundingsForLine(int line_number)
+        {
+            for (int i = 0; i < AllZonesBoundings.size(); ++i)
+                if (AllZonesBoundings[i].SourceLineNumber == line_number)
+                    return true;
+            return false;
+        }
+
+        ZoneBoundings& GetZoneBoundingsForLine(int line_number)
+        {
+            IM_ASSERT(HasZoneBoundingsForLine(line_number)); // Please call HasZoneBoundingsForLine before!
+            for (int i = 0; i < AllZonesBoundings.size(); ++i)
+            {
+                ZoneBoundings& zone = AllZonesBoundings[i];
+                if (zone.SourceLineNumber == line_number)
+                    return zone;
+            }
+
+            IM_ASSERT(false);       // We should never get there!
+            static ZoneBoundings dummy; return dummy; // Make the compiler happy
+        }
+
+        void SetZoneBoundingsForLine(int line_number, const ZoneBoundings& zone_boundings)
         {
             if (HasZoneBoundingsForLine(line_number))
-                current_zone_boundings = GetZoneBoundingsForLine(line_number);
+            {
+                ZoneBoundings& old_boundings = GetZoneBoundingsForLine(line_number);
+                old_boundings = zone_boundings;
+            }
             else
-                current_zone_boundings.SourceLineNumber = line_number;
+            {
+                AllZonesBoundings.push_back(zone_boundings);
+            }
         }
 
-        // Store MinY position for current marker
-        current_zone_boundings.Window = ImGui::GetCurrentWindow();
-        current_zone_boundings.MinY = ImGui::GetCursorPos().y;
-
-        // Store current marker in list
-        SetZoneBoundingsForLine(line_number, current_zone_boundings);
-
-        // Store Max position for previous marker
-        if (HasZoneBoundingsForLine(PreviousZoneSourceLine))
+        const char* FileBaseName(const char* file)
         {
-            ZoneBoundings& previous_zone_boundings = GetZoneBoundingsForLine(PreviousZoneSourceLine);
-            if (previous_zone_boundings.Window == ImGui::GetCurrentWindow())
-                previous_zone_boundings.MaxY = ImGui::GetCursorPos().y;
+            const char* file_basename = NULL;
+            {
+                const char *last_separator = strrchr(file, '/');
+                if (last_separator == NULL)
+                    last_separator = strrchr(file, '\\');
+                if (last_separator != NULL)
+                    file_basename = last_separator + 1; // (!)
+                else
+                    file_basename = file;
+            }
+            return file_basename;
         }
 
-        PreviousZoneSourceLine = line_number;
-    }
-
-    bool IsMouseHoveringZoneBoundings(const ZoneBoundings& zone_boundings)
-    {
-        if (!ImGui::IsWindowHovered(ImGuiHoveredFlags_AllowWhenBlockedByActiveItem))
-            return false;
-        float y_mouse = ImGui::GetIO().MousePos.y - ImGui::GetWindowPos().y + ImGui::GetScrollY();
-        return (
-               (y_mouse >= zone_boundings.MinY)
-            && (    (y_mouse < zone_boundings.MaxY)
-                 || (zone_boundings.MaxY < 0.f)
-               )
-               );
-    }
-
-    void HighlightZone(const ZoneBoundings zone_boundings)
-    {
-        // tl_dim / br_dim : top_left and bottom_right corners of the dimmed zone.
-        ImVec2 tl_dim = ImVec2 (0.f, 0.f);
-        ImVec2 br_dim = ImGui::GetWindowViewport()->Size;
-
-        // tl_zone / br_zone: top_left and bottom_right corner of the highlighted zone
-        ImVec2 tl_zone(ImGui::GetWindowPos().x, ImGui::GetWindowPos().y + zone_boundings.MinY - ImGui::GetScrollY());
-        float maxY = zone_boundings.MaxY > 0.f ? zone_boundings.MaxY : ImGui::GetWindowHeight();
-        ImVec2 br_zone(ImGui::GetWindowPos().x + ImGui::GetWindowWidth(), ImGui::GetWindowPos().y + maxY - ImGui::GetScrollY());
-
-        ImDrawList* draw_list = ImGui::GetForegroundDrawList();
-        ImU32 dim_color = IM_COL32(127, 127, 127, 127);
-
-        draw_list->AddRectFilled(tl_dim, ImVec2(br_dim.x, tl_zone.y), dim_color);
-
-        draw_list->AddRectFilled(ImVec2(tl_dim.x, tl_zone.y), ImVec2(tl_zone.x, br_zone.y), dim_color);
-        draw_list->AddRectFilled(ImVec2(br_zone.x, tl_zone.y), ImVec2(br_dim.x, br_zone.y), dim_color);
-
-        draw_list->AddRectFilled(ImVec2(tl_dim.x, br_zone.y), ImVec2(br_dim.x, br_dim.y), dim_color);
-    }
-
-    bool HasZoneBoundingsForLine(int line_number)
-    {
-        for (int i = 0; i < AllZonesBoundings.size(); ++i)
-            if (AllZonesBoundings[i].SourceLineNumber == line_number)
-                return true;
-        return false;
-    }
-
-    ZoneBoundings& GetZoneBoundingsForLine(int line_number)
-    {
-        IM_ASSERT(HasZoneBoundingsForLine(line_number)); // Please call HasZoneBoundingsForLine before!
-        for (int i = 0; i < AllZonesBoundings.size(); ++i)
-        {
-            ZoneBoundings& zone = AllZonesBoundings[i];
-            if (zone.SourceLineNumber == line_number)
-                return zone;
-        }
-
-        IM_ASSERT(false);       // We should never get there!
-        static ZoneBoundings dummy; return dummy; // Make the compiler happy
-    }
-
-    void SetZoneBoundingsForLine(int line_number, const ZoneBoundings& zone_boundings)
-    {
-        if (HasZoneBoundingsForLine(line_number))
-        {
-            ZoneBoundings& old_boundings = GetZoneBoundingsForLine(line_number);
-            old_boundings = zone_boundings;
-        }
-        else
-        {
-            AllZonesBoundings.push_back(zone_boundings);
-        }
-    }
-
-    const char* FileBaseName(const char* file)
-    {
-        const char* file_basename = NULL;
-        {
-            const char *last_separator = strrchr(file, '/');
-            if (last_separator == NULL)
-                last_separator = strrchr(file, '\\');
-            if (last_separator != NULL)
-                file_basename = last_separator + 1; // (!)
-            else
-                file_basename = file;
-        }
-        return file_basename;
-    }
-
-    // Members
-    ImVector<ZoneBoundings> AllZonesBoundings;    // All boundings for all the calls to DEMO_MARKERS
-    int PreviousZoneSourceLine;                   // Location of the previous call to DEMO_MARKERS (used to end the previous bounding)
+        // Members
+        ImVector<ZoneBoundings> AllZonesBoundings;    // All boundings for all the calls to DEMO_MARKERS
+        int PreviousZoneSourceLine;                   // Location of the previous call to DEMO_MARKERS (used to end the previous bounding)
 #ifdef DEMOMARKER_SHOWCODEWINDOW
-    DemoCodeWindow CodeWindow;
+        DemoCodeWindow CodeWindow;
 #endif
-    bool IsPicking;
-};
-static DemoMarkersRegistry GDemoMarkersRegistry;  // Global instance used by the DEMO_MARKER macro
+        bool IsPicking;
+    };
+    static DemoMarkersRegistry GDemoMarkersRegistry;  // Global instance used by the DEMO_MARKER macro
 
-void DemoMarker(const char* file, int line_number, const char *demo_title)
-{
-    GDemoMarkersRegistry.DemoMarker(file, line_number, demo_title);
-}
+    void DemoMarker(const char* file, int line_number, const char *demo_title)
+    {
+        GDemoMarkersRegistry.DemoMarker(file, line_number, demo_title);
+    }
 
-#define DEMO_MARKER(demo_title) DemoMarker(__FILE__, __LINE__, demo_title)
+} // namespace DemoMarkerTools
+
+#define DEMO_MARKER(demo_title) DemoMarkerTools::DemoMarker(__FILE__, __LINE__, demo_title)
 
 //-----------------------------------------------------------------------------
 // [SECTION] Forward Declarations, Helpers
@@ -720,7 +726,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
     static bool show_app_style_editor = false;
     static bool show_app_about = false;
 
-    GDemoMarkersRegistry.StartFrame();
+    DemoMarkerTools::GDemoMarkersRegistry.StartFrame();
 
     if (show_app_metrics)       { ImGui::ShowMetricsWindow(&show_app_metrics); }
     if (show_app_about)         { ImGui::ShowAboutWindow(&show_app_about); }
@@ -818,7 +824,7 @@ void ImGui::ShowDemoWindow(bool* p_open)
     }
 
     ImGui::Text("dear imgui says hello. (%s)", IMGUI_VERSION);
-    GDemoMarkersRegistry.ShowPickButton();
+    DemoMarkerTools::GDemoMarkersRegistry.ShowPickButton();
     ImGui::Spacing();
 
     DEMO_MARKER("Help");
