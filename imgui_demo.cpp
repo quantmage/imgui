@@ -197,15 +197,171 @@ ImGuiDemoCallback GImGuiDemoCallback = NULL;
 namespace DemoMarkerTools
 {
 #ifdef DEMOMARKER_SHOWCODEWINDOW
+
+    // Simple CString utilities (only used for DemoMarkers titles parsing)
+    namespace ImCStringUtils
+    {
+        struct ImCStringVector
+        {
+            ImCStringVector() : Strings() {}
+            ~ImCStringVector()
+            {
+                for (int i = 0; i < Strings.size(); ++i)
+                    IM_DELETE(Strings[i]);
+            }
+            void AppendAndOwn(char *str)
+            {
+                Strings.push_back(str);
+            }
+
+            ImVector<char *> Strings;
+        };
+
+        ImCStringVector SplitString(const char* str, char separator)
+        {
+            ImCStringVector r;
+
+            const char *pos = str;
+            const char *next_separator = NULL;
+            while(true)
+            {
+                next_separator = strchr(pos, separator);
+                if (next_separator == NULL)
+                    break;
+
+                int len = (int)(next_separator - pos);
+                IM_ASSERT(len >= 0);
+                char *s = (char *)IM_ALLOC((size_t)len + 1);
+                strncpy(s, pos, (size_t)len);
+                s[len] = '\0';
+
+                r.AppendAndOwn(s);
+
+                pos = next_separator + 1;
+            }
+            return r;
+        }
+
+        int CountCharOccurences(const char* str, char needle)
+        {
+            int nb = 0;
+            for (const char* c = str; *c; ++c)
+            {
+                if (*c == needle)
+                    ++nb;
+            }
+            return nb;
+        }
+
+        bool StartsWith(const char* haystack, const char* needle_prefix)
+        {
+            return strstr(haystack, needle_prefix) == haystack;
+        }
+
+        bool Contains(const char* haystack, const char* needle)
+        {
+            return strstr(haystack, needle) != NULL;
+        }
+
+    } // namespace ImCStringUtils
+
+    namespace DemoMarkerTagsParser
+    {
+#define DEMO_MARKER_MAX_TAG_LENGTH 256
+
+        struct DemoMarkerTag
+        {
+            DemoMarkerTag(const char* tag, int lineNumber, int level)
+                : LineNumber(lineNumber), Level(level)
+            {
+                strncpy(Tag, tag, DEMO_MARKER_MAX_TAG_LENGTH);
+                Tag[DEMO_MARKER_MAX_TAG_LENGTH - 1] = '\0';
+            }
+            char Tag[DEMO_MARKER_MAX_TAG_LENGTH];     // tag can be an Id or a title
+            int LineNumber;
+            int Level = 0; // optional title level
+        };
+
+        bool IsDemoMarkerLine(const char* line)
+        {
+            return
+                ImCStringUtils::Contains(line, DEMO_MARKER_MACRO_NAME)
+                && ! ImCStringUtils::StartsWith(line, "#define")
+                && ! ImCStringUtils::Contains(line, "ImGui::SetTooltip");
+        }
+
+        // Given a line like
+        //     DEMO_MARKER("Widget/Basic/Button");
+        // ExtractDemoMarkerTag will return a CString that contains "Widget/Basic/Button"
+        // (this CString shall be freed by the caller)
+        char* ExtractDemoMarkerTag(const char* line)
+        {
+            const char* marker_position = strstr(line, DEMO_MARKER_MACRO_NAME);
+            IM_ASSERT(marker_position != NULL);
+            const char *opening_quote = strchr(marker_position, '"');
+            IM_ASSERT(opening_quote != NULL);
+            const char *closing_quote = strrchr(marker_position, '"');
+            IM_ASSERT(closing_quote != NULL);
+            ++opening_quote;
+
+            int len = (int)(closing_quote - opening_quote);
+            IM_ASSERT(len >= 0);
+            char* r = (char *)IM_ALLOC((size_t)len + 1);
+            strncpy(r, opening_quote, (size_t)len);
+            r[len] = '\0';
+            return r;
+        }
+
+        ImVector<DemoMarkerTag> ParseDemoMarkerTags(const char* source_code)
+        {
+            ImCStringUtils::ImCStringVector lines = ImCStringUtils::SplitString(source_code, '\n');
+
+            // macro_definition_line_number : first line with "#define DEMO_MARKER(..."
+            int macro_definition_line_number = 0;
+            {
+                for (int i = 0; i < lines.Strings.size(); ++i)
+                {
+                    const char *line_str = lines.Strings[i];
+                    if (ImCStringUtils::StartsWith(line_str, "#define " DEMO_MARKER_MACRO_NAME "("))
+                    {
+                        macro_definition_line_number = i;
+                        break;
+                    }
+                }
+            }
+            IM_ASSERT(macro_definition_line_number > 0);
+
+            ImVector<DemoMarkerTag> r;
+            {
+                for (int line_number = macro_definition_line_number + 1; line_number < lines.Strings.size(); ++line_number)
+                {
+                    const char *line_str = lines.Strings[line_number];
+                    if (IsDemoMarkerLine(line_str))
+                    {
+                        char *tag = ExtractDemoMarkerTag(line_str);
+                        int level = ImCStringUtils::CountCharOccurences(line_str, '/');
+                        DemoMarkerTag v(tag, line_number, level);
+                        IM_DELETE(tag);
+                        r.push_back(v);
+                    }
+                }
+            }
+            return r;
+        }
+    } // namespace DemoMarkerTagsParser
+
+
     // DemoCodeWindow: simple code viewer for imgui_demo.cpp (reads imgui_demo.cpp from its compile time location)
     class DemoCodeWindow
     {
     public:
         DemoCodeWindow() :
             EditorLine(0),
-            IsWindowOpened(false)
+            IsWindowOpened(false),
+            ShowFilterResults(false)
         {
             ReadSourceCode();
+            Tags = DemoMarkerTagsParser::ParseDemoMarkerTags(SourceCode);
             MakeSourceLineNumbersStr();
         }
 
@@ -242,10 +398,12 @@ namespace DemoMarkerTools
             ImGui::SetNextWindowSize(ImVec2(520.f, 680), ImGuiCond_FirstUseEver);
             if (ImGui::Begin("imgui_demo.cpp - code", &IsWindowOpened))
             {
+                GuiSearch();
+
                 ImGui::BeginChild("Code Child");
                 if (EditorLine >= 0)
                 {
-                    ImGui::SetScrollY(EditorLine * ImGui::GetFontSize() - ImGui::GetFontSize());
+                    ImGui::SetScrollY(EditorLine_NavigateTo * ImGui::GetFontSize() - ImGui::GetFontSize());
                     ImGui::SetScrollX(0.f);
                     EditorLine = -1;
                 }
@@ -258,6 +416,57 @@ namespace DemoMarkerTools
         }
 
     private:
+        void GuiSearch()
+        {
+            const char *tooltip_text =
+                "Filter usage:[-excl],incl\n"
+                "For example:\n"
+                "   \"button\" will search for \"button\"\n"
+                "   \"-widget,button\" will search for \"button\" without \"widget\"";
+            const char* filter_label =
+                "Filter usage:[-excl],incl";
+
+            bool show_tooltip = false;
+
+            ImGui::Text("Search for demos:"); ImGui::SameLine();
+            if (ImGui::IsItemHovered())
+                show_tooltip = true;
+            ImGui::TextDisabled("?"); ImGui::SameLine();
+            if (ImGui::IsItemHovered())
+                show_tooltip = true;
+
+            ImGui::SetNextItemWidth(200.f);
+            Filter.Draw(filter_label);
+
+            if (show_tooltip)
+            {
+                ImGui::BeginTooltip();
+                ImGui::PushTextWrapPos(ImGui::GetFontSize() * 35.0f);
+                ImGui::TextUnformatted(tooltip_text);
+                ImGui::PopTextWrapPos();
+                ImGui::EndTooltip();
+            }
+
+            if (Filter.IsActive() && ImGui::IsItemFocused())
+                ShowFilterResults = true;
+            if (ShowFilterResults)
+            {
+                for (int i = 0; i < Tags.size(); ++i)
+                {
+                    const auto& tag = Tags[i];
+                    if (Filter.PassFilter(tag.Tag))
+                    {
+                        if (ImGui::Button(tag.Tag))
+                        {
+                            printf("Clicked tag %s\n", tag.Tag);
+                            EditorLine = tag.LineNumber;
+                            ShowFilterResults = false;
+                        }
+                    }
+                }
+            }
+        }
+
         void ReadSourceCode()
         {
 #ifdef __EMSCRIPTEN__
@@ -310,6 +519,10 @@ namespace DemoMarkerTools
         char*  SourceLineNumbersStr;   // A String that contains line numbers, displayed to the left of the source code
         int    EditorLine;             // Currently displayed editor line (can be set via DemoCallback)
         bool   IsWindowOpened;         // Is the code window opened?
+
+        ImVector<DemoMarkerTagsParser::DemoMarkerTag> Tags;
+        ImGuiTextFilter Filter;
+        bool ShowFilterResults;
     };
 #endif // #ifdef DEMOMARKER_SHOWCODEWINDOW
 
