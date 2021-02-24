@@ -92,6 +92,16 @@ Index of this file:
 #include <stdint.h>         // intptr_t
 #endif
 
+// Specific includes for DemoMarkerTools::HyperlinkHelper
+#if defined(__EMSCRIPTEN__)
+#include <emscripten.h>
+#elif defined(_WIN32)
+#include <windows.h>
+#include <Shellapi.h>
+#elif defined(__APPLE__)
+#include <TargetConditionals.h>
+#endif
+
 // Visual Studio warnings
 #ifdef _MSC_VER
 #pragma warning (disable: 4996) // 'This function or variable may be unsafe': strcpy, strdup, sprintf, vsnprintf, sscanf, fopen
@@ -265,6 +275,29 @@ namespace DemoMarkerTools
 
     } // namespace ImCStringUtils
 
+#define IMGUI_DEMO_GITHUB_URL "https://github.com/pthom/imgui/blob/DemoCodeSearch/imgui_demo.cpp#L"
+    void BrowseToUrl(const char* url)
+    {
+        IM_ASSERT(ImCStringUtils::StartsWith(url, "http"));
+#if defined(__EMSCRIPTEN__)
+        char js_command[1024];
+        snprintf(js_command, 1024, "window.open(\"%s\");", url);
+        emscripten_run_script(js_command);
+#elif defined(_WIN32)
+        ShellExecuteA( NULL, "open", url, NULL, NULL, SW_SHOWNORMAL );
+#elif defined(TARGET_OS_IOS)
+        // Nothing on iOS
+#elif defined(TARGET_OS_MAC)
+        char cmd[1024];
+        snprintf(cmd, 1024, "open %s", url);
+        system(cmd);
+#elif defined(__linux__)
+        char cmd[1024];
+        snprintf(cmd, 1024, "xdg-open %s", url);
+        system(cmd);
+#endif
+    }
+
     namespace DemoMarkerTagsParser
     {
 #define DEMO_MARKER_MAX_TAG_LENGTH 256
@@ -356,7 +389,8 @@ namespace DemoMarkerTools
     {
     public:
         DemoCodeWindow() :
-            EditorLine(0),
+            EditorLine_NavigateTo(0),
+            EditorLine_LastSelected(0),
             IsWindowOpened(false),
             ShowFilterResults(false)
         {
@@ -378,7 +412,7 @@ namespace DemoMarkerTools
             if (clicked)
             {
                 IsWindowOpened = true;
-                EditorLine = line_number;
+                EditorLine_NavigateTo = line_number;
             }
         }
 
@@ -400,16 +434,27 @@ namespace DemoMarkerTools
             {
                 GuiSearch();
 
+                if (ImGui::Button("Open Github"))
+                {
+                    char url[1024];
+                    snprintf(url, 1024, "%s%i", IMGUI_DEMO_GITHUB_URL, EditorLine_LastSelected);
+                    BrowseToUrl(url);
+                }
+                ImGui::SameLine();
+                ImGui::TextDisabled("(view imgui_demo.cpp on github at line %i)", EditorLine_LastSelected);
+
                 ImGui::BeginChild("Code Child");
-                if (EditorLine >= 0)
+                if (EditorLine_NavigateTo >= 0)
                 {
                     ImGui::SetScrollY(EditorLine_NavigateTo * ImGui::GetFontSize() - ImGui::GetFontSize());
                     ImGui::SetScrollX(0.f);
-                    EditorLine = -1;
+                    EditorLine_LastSelected = EditorLine_NavigateTo;
+                    EditorLine_NavigateTo = -1;
                 }
                 ImGui::TextUnformatted(SourceLineNumbersStr);
                 ImGui::SameLine();
                 ImGui::TextUnformatted(SourceCode);
+
                 ImGui::EndChild();
             }
             ImGui::End();
@@ -459,7 +504,7 @@ namespace DemoMarkerTools
                         if (ImGui::Button(tag.Tag))
                         {
                             printf("Clicked tag %s\n", tag.Tag);
-                            EditorLine = tag.LineNumber;
+                            EditorLine_NavigateTo = tag.LineNumber;
                             ShowFilterResults = false;
                         }
                     }
@@ -515,10 +560,11 @@ namespace DemoMarkerTools
         }
 
     private:
-        char*  SourceCode;             // Full source code of imgui_demo.cpp, read from its compile time location
-        char*  SourceLineNumbersStr;   // A String that contains line numbers, displayed to the left of the source code
-        int    EditorLine;             // Currently displayed editor line (can be set via DemoCallback)
-        bool   IsWindowOpened;         // Is the code window opened?
+        char*  SourceCode;                  // Full source code of imgui_demo.cpp, read from its compile time location
+        char*  SourceLineNumbersStr;        // A String that contains line numbers, displayed to the left of the source code
+        int    EditorLine_NavigateTo;       // Will be >= 0 when navigating via callback (this value is transient)
+        int    EditorLine_LastSelected;     // Last line to which we navigated
+        bool   IsWindowOpened;              // Is the code window opened?
 
         ImVector<DemoMarkerTagsParser::DemoMarkerTag> Tags;
         ImGuiTextFilter Filter;
