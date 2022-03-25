@@ -58,6 +58,8 @@
 #include "imgui.h"
 #include "imgui_impl_glfw.h"
 
+#include <math.h> // isinf
+
 // Clang warnings with -Weverything
 #if defined(__clang__)
 #pragma clang diagnostic push
@@ -302,6 +304,7 @@ void ImGui_ImplGlfw_MouseButtonCallback(GLFWwindow* window, int button, int acti
     ImGui_ImplGlfw_UpdateKeyModifiers(mods);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     if (button >= 0 && button < ImGuiMouseButton_COUNT)
         io.AddMouseButtonEvent(button, action == GLFW_PRESS);
 }
@@ -313,6 +316,7 @@ void ImGui_ImplGlfw_ScrollCallback(GLFWwindow* window, double xoffset, double yo
         bd->PrevUserCallbackScroll(window, xoffset, yoffset);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     io.AddMouseWheelEvent((float)xoffset, (float)yoffset);
 }
 
@@ -363,6 +367,7 @@ void ImGui_ImplGlfw_KeyCallback(GLFWwindow* window, int keycode, int scancode, i
     keycode = ImGui_ImplGlfw_TranslateUntranslatedKey(keycode, scancode);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     ImGuiKey imgui_key = ImGui_ImplGlfw_KeyToImGuiKey(keycode);
     io.AddKeyEvent(imgui_key, (action == GLFW_PRESS));
     io.SetKeyEventNativeData(imgui_key, keycode, scancode); // To support legacy indexing (<1.87 user code)
@@ -375,6 +380,7 @@ void ImGui_ImplGlfw_WindowFocusCallback(GLFWwindow* window, int focused)
         bd->PrevUserCallbackWindowFocus(window, focused);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     io.AddFocusEvent(focused != 0);
 }
 
@@ -385,6 +391,7 @@ void ImGui_ImplGlfw_CursorPosCallback(GLFWwindow* window, double x, double y)
         bd->PrevUserCallbackCursorPos(window, x, y);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     if (io.ConfigFlags & ImGuiConfigFlags_ViewportsEnable)
     {
         int window_x, window_y;
@@ -405,6 +412,7 @@ void ImGui_ImplGlfw_CursorEnterCallback(GLFWwindow* window, int entered)
         bd->PrevUserCallbackCursorEnter(window, entered);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     if (entered)
     {
         bd->MouseWindow = window;
@@ -425,7 +433,24 @@ void ImGui_ImplGlfw_CharCallback(GLFWwindow* window, unsigned int c)
         bd->PrevUserCallbackChar(window, c);
 
     ImGuiIO& io = ImGui::GetIO();
+    io.FrameCountSinceLastInput = 0;
     io.AddInputCharacter(c);
+}
+
+void ImGui_ImplGlfw_WaitForEvent(GLFWwindow* window)
+{
+    if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode))
+        return;
+
+    bool window_is_hidden = !glfwGetWindowAttrib(window, GLFW_VISIBLE) || glfwGetWindowAttrib(window, GLFW_ICONIFIED);
+    double waiting_time = window_is_hidden ? INFINITY : ImGui::GetEventWaitingTime();
+    if (waiting_time > 0.0)
+    {
+        if (isinf(waiting_time))
+            glfwWaitEvents();
+        else
+            glfwWaitEventsTimeout(waiting_time);
+    }
 }
 
 void ImGui_ImplGlfw_MonitorCallback(GLFWmonitor*, int)
