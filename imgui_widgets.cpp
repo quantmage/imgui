@@ -662,6 +662,9 @@ bool ImGui::ButtonBehavior(const ImRect& bb, ImGuiID id, bool* out_hovered, bool
             g.ActiveIdHasBeenPressedBefore = true;
     }
 
+    if (held) // && (flags & ImGuiItemFlags_ButtonRepeat))
+        ImGui::SetMaxWaitBeforeNextFrame(0.05);
+
     if (out_hovered) *out_hovered = hovered;
     if (out_held) *out_held = held;
 
