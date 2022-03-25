@@ -553,12 +553,12 @@ static ImGuiKey ImGui_ImplWin32_VirtualKeyToImGuiKey(WPARAM wParam)
     }
 }
 
-void ImGui_ImplWin32_WaitForEvent()
+void ImGui_ImplWin32_WaitForEvent(void* hwnd)
 {
     if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode))
         return;
 
-    BOOL window_is_hidden = !IsWindowVisible(g_hWnd) || IsIconic(g_hWnd);
+    BOOL window_is_hidden = !IsWindowVisible((HWND)hwnd) || IsIconic((HWND)hwnd);
     double waiting_time = window_is_hidden ? INFINITE : ImGui::GetEventWaitingTime();
     if (waiting_time > 0.0)
     {
