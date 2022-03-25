@@ -261,12 +261,12 @@ static void ImGui_ImplSDL2_UpdateKeyModifiers(SDL_Keymod sdl_key_mods)
     io.AddKeyEvent(ImGuiKey_ModSuper, (sdl_key_mods & KMOD_GUI) != 0);
 }
 
-void ImGui_ImplSDL2_WaitForEvent()
+void ImGui_ImplSDL2_WaitForEvent(SDL_Window* window)
 {
     if (!(ImGui::GetIO().ConfigFlags & ImGuiConfigFlags_EnablePowerSavingMode))
         return;
 
-    Uint32 window_flags = SDL_GetWindowFlags(g_Window);
+    Uint32 window_flags = SDL_GetWindowFlags(window);
     bool window_is_hidden = window_flags & (SDL_WINDOW_HIDDEN | SDL_WINDOW_MINIMIZED);
     double waiting_time = window_is_hidden ? INFINITY : ImGui::GetEventWaitingTime();
     if (waiting_time > 0.0)
