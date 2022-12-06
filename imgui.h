@@ -76,6 +76,10 @@
 #endif // IMGUI_BUNDLE_PYTHON_UNSUPPORTED_API
 // [/ADAPT_IMGUI_BUNDLE] utilities
 
+//
+// Adaptations for ImGui Bundle are noted with [ADAPT_IMGUI_BUNDLE]
+//
+
 /*
 Index of this file:
 // [SECTION] Header mess
