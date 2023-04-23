@@ -135,7 +135,9 @@ static const ImU64          IM_U64_MAX = (2ULL * 9223372036854775807LL + 1);
 // For InputTextEx()
 static bool     InputTextFilterCharacter(ImGuiContext* ctx, unsigned int* p_char, ImGuiInputTextFlags flags, ImGuiInputTextCallback callback, void* user_data, bool input_source_is_clipboard = false);
 static int      InputTextCalcTextLenAndLineCount(const char* text_begin, const char** out_text_end);
-static ImVec2   InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, const char* text_end, const char** remaining = NULL, ImVec2* out_offset = NULL, bool stop_on_new_line = false);
+static ImVec2   InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, const char* text_end, const char** remaining = NULL, ImVec2* out_offset = NULL, bool stop_on_new_line = false, float wrap_width = 0.0f, bool keep_trailing_blanks = false);
+static ImVec2   FindCharPosition(const char* text_begin, const char* char_position, const char* text_end, const float wrap_width);
+static const char*   CalcWordWrapPosition(const ImFont* font, float scale, const char* text, const char* text_end, float wrap_width);
 
 //-------------------------------------------------------------------------
 // [SECTION] Widgets: Text, etc.
@@ -4011,8 +4013,195 @@ static int InputTextCalcTextLenAndLineCount(const char* text_begin, const char**
     return line_count;
 }
 
+static const char* CalcWordWrapPosition(const ImFont* font, float scale, const char* text, const char* text_end, float wrap_width)
+{
+
+    // Simple word-wrapping for English, not full-featured. Please submit failing cases!
+    // FIXME: Much possible improvements (don't cut things like "word !", "word!!!" but cut within "word,,,,", more sensible support for punctuations, support for Unicode punctuations, etc.)
+
+    // For references, possible wrap point marked with ^
+    //  "aaa bbb, ccc,ddd. eee   fff. ggg!"
+    //      ^    ^    ^   ^   ^__    ^    ^
+
+    // List of hardcoded separators: .,;!?'"
+
+    // Skip extra blanks after a line returns (that includes not counting them in width computation)
+    // e.g. "Hello    world" --> "Hello" "World"
+
+    // Cut words that cannot possibly fit within one line.
+    // e.g.: "The tropical fish" with ~5 characters worth of width --> "The tr" "opical" "fish"
+
+    float line_width = 0.0f;
+    float word_width = 0.0f;
+    float blank_width = 0.0f;
+    wrap_width /= scale; // We work with unscaled widths to avoid scaling every characters
+
+    const char* word_end = text;
+    const char* prev_word_end = NULL;
+    bool inside_word = true;
+
+    const char* s = text;
+    while (s < text_end)
+    {
+        unsigned int c;
+        s += ImTextCharFromUtf8(&c, s, text_end);
+        if (c == 0)
+            break;
+
+        if (c < 32)
+        {
+            if (c == '\n')
+            {
+                line_width = word_width = blank_width = 0.0f;
+                inside_word = true;
+                continue;
+            }
+            if (c == '\r')
+            {
+                continue;
+            }
+        }
+
+        const float char_width = font->GetCharAdvance(c) * scale;
+        if (ImCharIsBlankW(c))
+        {
+            if (inside_word)
+            {
+                line_width += blank_width;
+                blank_width = 0.0f;
+                word_end = s - 1;
+            }
+            blank_width += char_width;
+            inside_word = false;
+        }
+        else
+        {
+            word_width += char_width;
+            if (inside_word)
+            {
+                word_end = s;
+            }
+            else
+            {
+                prev_word_end = word_end;
+                line_width += word_width + blank_width;
+                word_width = blank_width = 0.0f;
+            }
+
+            // Allow wrapping after punctuation.
+            inside_word = (c != '.' && c != ',' && c != ';' && c != '!' && c != '?' && c != '\"');
+        }
+
+        // We ignore blank width at the end of the line (they can be skipped)
+        if (line_width + word_width > wrap_width)
+        {
+            // Words that cannot possibly fit within an entire line will be cut anywhere.
+            if (word_width < wrap_width)
+                s = prev_word_end ? prev_word_end : word_end;
+            break;
+        }
+    }
+
+    return s;
+}
+
+static ImVec2 FindCharPosition(const char* text_begin, const char* char_position, const char* text_end, const float wrap_width)
+{
+    ImGuiContext& g = *GImGui;
+    ImFont* font = g.Font;
+    const float line_height = g.FontSize;
+    const float scale = line_height / font->FontSize;
+
+    ImVec2 text_size = ImVec2(0, 0);
+    float line_width = 0.0f;
+
+    const bool word_wrap_enabled = (wrap_width > 0.0f);
+    const char* word_wrap_eol = NULL;
+
+    bool stop_on_new_line = false;
+
+    const char* s = text_begin;
+    while (s < text_end)
+    {
+        if (word_wrap_enabled)
+        {
+            if (!word_wrap_eol)
+            {
+                word_wrap_eol = CalcWordWrapPosition(font, scale, s, text_end, wrap_width - line_width);
+                if (word_wrap_eol == s)
+                {
+                    unsigned int c = (unsigned int)*s;
+                    if (c < 0x80)
+                        word_wrap_eol += 1;
+                    else
+                        word_wrap_eol += ImTextCharFromUtf8(&c, s, text_end);
+                }
+            }
+
+            if (s >= word_wrap_eol)
+            {
+                text_size.x = ImMax(text_size.x, line_width);
+                text_size.y += line_height;
+                line_width = 0.0f;
+                word_wrap_eol = NULL;
+
+
+                while (s < text_end)
+                {
+                    unsigned int c;
+                    const auto s_inc = ImTextCharFromUtf8(&c, s, text_end);
+
+                    if(ImCharIsBlankW(c)) {
+                        s += s_inc;
+                    } else if(c == '\n'){
+                        s += s_inc;
+                        break;
+                    } else { break; }
+                }
+
+                if(s >= char_position)
+                {
+                    stop_on_new_line = true;
+                }
+
+                if (stop_on_new_line)
+                    break;
+                continue;
+            }
+        }
+
+        if(s == char_position)
+        {
+            break;
+        }
+
+        unsigned int c;
+        s += ImTextCharFromUtf8(&c, s, text_end);
+        
+        if (c == '\n')
+        {
+            text_size.x = ImMax(text_size.x, line_width);
+            text_size.y += line_height;
+            line_width = 0.0f;
+            if (stop_on_new_line)
+                break;
+            continue;
+        }
+        if (c == '\r')
+            continue;
+
+        const float char_width = font->GetCharAdvance((ImWchar)c) * scale;
+        line_width += char_width;
+    }
+
+    if (text_size.x < line_width)
+        text_size.x = line_width;
+
+    return ImVec2(line_width, text_size.y + line_height);
+}
+
 // FIXME: Ideally we'd share code with ImFont::CalcTextSizeA()
-static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, const char* text_end, const char** remaining, ImVec2* out_offset, bool stop_on_new_line)
+static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, const char* text_end, const char** remaining, ImVec2* out_offset, bool stop_on_new_line, float wrap_width, bool keep_trailing_blanks)
 {
     ImGuiContext& g = *ctx;
     ImFont* font = g.Font;
@@ -4022,9 +4211,57 @@ static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, c
     ImVec2 text_size = ImVec2(0, 0);
     float line_width = 0.0f;
 
+    const float wrap_width = word_wrap_width;
+    const bool word_wrap_enabled = (wrap_width > 0.0f);
+    const char* word_wrap_eol = NULL;
+
     const char* s = text_begin;
     while (s < text_end)
     {
+        if (word_wrap_enabled)
+        {
+            if (!word_wrap_eol)
+            {
+                word_wrap_eol = CalcWordWrapPosition(font, scale, s, text_end, wrap_width - line_width);
+                if (word_wrap_eol == s)
+                {
+                    unsigned int c = (unsigned int)*s;
+                    if (c < 0x80)
+                        word_wrap_eol += 1;
+                    else
+                        word_wrap_eol += ImTextCharFromUtf8(&c, s, text_end);
+                }
+            }
+
+            if (s >= word_wrap_eol)
+            {
+                text_size.x = ImMax(text_size.x, line_width);
+                text_size.y += line_height;
+                line_width = 0.0f;
+                word_wrap_eol = NULL;
+
+
+                if(!keep_trailing_blanks)
+                {
+                    while (s < text_end)
+                    {
+                        unsigned int c;
+                        const auto s_inc = ImTextCharFromUtf8(&c, s, text_end);
+                        if(ImCharIsBlankW(c)) {
+                            s += s_inc;
+                        } else if(c == '\n'){
+                            s += s_inc;
+                            break;
+                        } else { break; }
+                    }
+                }
+
+                if (stop_on_new_line)
+                    break;
+                continue;
+            }
+        }
+
         unsigned int c = (unsigned int)*s;
         if (c < 0x80)
             s += 1;
@@ -4077,7 +4314,7 @@ static void    STB_TEXTEDIT_LAYOUTROW(StbTexteditRow* r, ImGuiInputTextState* ob
 {
     const char* text = obj->TextA.Data;
     const char* text_remaining = NULL;
-    const ImVec2 size = InputTextCalcTextSize(obj->Ctx, text + line_start_idx, text + obj->CurLenA, &text_remaining, NULL, true);
+    const ImVec2 size = InputTextCalcTextSize(obj->Ctx, text + line_start_idx, text + obj->CurLenA, &text_remaining, NULL, true, obj->WordWrapWidth);
     r->x0 = 0.0f;
     r->x1 = size.x;
     r->baseline_y_delta = size.y;
@@ -4560,6 +4797,9 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
     const ImRect frame_bb(window->DC.CursorPos, window->DC.CursorPos + frame_size);
     const ImRect total_bb(frame_bb.Min, frame_bb.Min + total_size);
 
+    const bool has_word_wrap = is_multiline && (flags & ImGuiInputTextFlags_WordWrapping) != 0;
+    const float word_wrap_width = has_word_wrap ? frame_size.x - style.FramePadding.x * 2.0f : 0.0f;
+
     ImGuiWindow* draw_window = window;
     ImVec2 inner_size = frame_size;
     ImGuiLastItemData item_data_backup;
@@ -4707,6 +4947,11 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
         if (flags & ImGuiInputTextFlags_AlwaysOverwrite)
             state->Stb->insert_mode = 1; // stb field name is indeed incorrect (see #2863)
+    }
+
+    if(state)
+    {
+        state->WordWrapWidth = word_wrap_width;
     }
 
     const bool is_osx = io.ConfigMacOSXBehaviors;
@@ -5283,47 +5528,30 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         ImVec2 cursor_offset, select_start_offset;
 
         {
-            // Find lines numbers straddling cursor and selection min position
-            int cursor_line_no = render_cursor ? -1 : -1000;
-            int selmin_line_no = render_selection ? -1 : -1000;
-            const char* cursor_ptr = render_cursor ? text_begin + state->Stb->cursor : NULL;
-            const char* selmin_ptr = render_selection ? text_begin + ImMin(state->Stb->select_start, state->Stb->select_end) : NULL;
-
-            // Count lines and find line number for cursor and selection ends
-            int line_count = 1;
-            if (is_multiline)
-            {
-                for (const char* s = text_begin; (s = (const char*)memchr(s, '\n', (size_t)(text_end - s))) != NULL; s++)
-                {
-                    if (cursor_line_no == -1 && s >= cursor_ptr) { cursor_line_no = line_count; }
-                    if (selmin_line_no == -1 && s >= selmin_ptr) { selmin_line_no = line_count; }
-                    line_count++;
-                }
+            // Find input local positions of 'cursor' (slot 0) and 'select_start' (slot 1) positions.
+            if(render_cursor) {
+                const char* cursor_ptr = text_begin + state->Stb.cursor;
+                ImVec2 cursor_pos = FindCharPosition(text_begin, cursor_ptr, text_end, word_wrap_width);
+                cursor_offset.x = cursor_pos.x;
+                cursor_offset.y = cursor_pos.y;
             }
-            if (cursor_line_no == -1)
-                cursor_line_no = line_count;
-            if (selmin_line_no == -1)
-                selmin_line_no = line_count;
-
-            // Calculate 2d position by finding the beginning of the line and measuring distance
-            cursor_offset.x = InputTextCalcTextSize(&g, ImStrbol(cursor_ptr, text_begin), cursor_ptr).x;
-            cursor_offset.y = cursor_line_no * g.FontSize;
-            if (selmin_line_no >= 0)
+            if (render_selection)
             {
-                select_start_offset.x = InputTextCalcTextSize(&g, ImStrbol(selmin_ptr, text_begin), selmin_ptr).x;
-                select_start_offset.y = selmin_line_no * g.FontSize;
+                const char* selection_ptr = text_begin + ImMin(state->Stb.select_start, state->Stb.select_end);
+                ImVec2 selection_pos = FindCharPosition(text_begin, selection_ptr, text_end, word_wrap_width);
+                select_start_offset.x = selection_pos.x;
+                select_start_offset.y = selection_pos.y;
             }
 
-            // Store text height (note that we haven't calculated text width at all, see GitHub issues #383, #1224)
             if (is_multiline)
-                text_size = ImVec2(inner_size.x, line_count * g.FontSize);
+                text_size = InputTextCalcTextSize(&g, text_begin, text_end, NULL, NULL, false, word_wrap_width);
         }
 
         // Scroll
         if (render_cursor && state->CursorFollow)
         {
             // Horizontal scroll in chunks of quarter width
-            if (!(flags & ImGuiInputTextFlags_NoHorizontalScroll))
+            if (!(flags & ImGuiInputTextFlags_NoHorizontalScroll) && !has_word_wrap)
             {
                 const float scroll_increment_x = inner_size.x * 0.25f;
                 const float visible_width = inner_size.x - style.FramePadding.x;
@@ -5369,14 +5597,18 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
             {
                 if (rect_pos.y > clip_rect.w + g.FontSize)
                     break;
-                if (rect_pos.y < clip_rect.y)
+                if (!has_word_wrap && rect_pos.y < clip_rect.y)
                 {
+                    // FIXME: This doesn't work properly with word wrapping
+                    //
                     p = (const char*)memchr((void*)p, '\n', text_selected_end - p);
                     p = p ? p + 1 : text_selected_end;
                 }
                 else
                 {
-                    ImVec2 rect_size = InputTextCalcTextSize(&g, p, text_selected_end, &p, NULL, true);
+                    float selection_word_wrap = has_word_wrap ? (word_wrap_width - ImMax(0.0f, rect_pos.x - draw_pos.x)) : 0.0f;
+                    ImVec2 rect_size = InputTextCalcTextSize(&g, p, text_selected_end, &p, NULL, true, selection_word_wrap, false);
+
                     if (rect_size.x <= 0.0f) rect_size.x = IM_TRUNC(g.Font->GetCharAdvance((ImWchar)' ') * 0.50f); // So we can see selected empty lines
                     ImRect rect(rect_pos + ImVec2(0.0f, bg_offy_up - g.FontSize), rect_pos + ImVec2(rect_size.x, bg_offy_dn));
                     rect.ClipWith(clip_rect);
@@ -5393,7 +5625,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         if (is_multiline || (buf_display_end - buf_display) < buf_display_max_length)
         {
             ImU32 col = GetColorU32(is_displaying_hint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos - draw_scroll, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
+            draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos - draw_scroll, col, buf_display, buf_display_end, word_wrap_width, is_multiline ? NULL : &clip_rect);
         }
 
         // Draw blinking cursor
@@ -5429,7 +5661,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         if (is_multiline || (buf_display_end - buf_display) < buf_display_max_length)
         {
             ImU32 col = GetColorU32(is_displaying_hint ? ImGuiCol_TextDisabled : ImGuiCol_Text);
-            draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos, col, buf_display, buf_display_end, 0.0f, is_multiline ? NULL : &clip_rect);
+            draw_window->DrawList->AddText(g.Font, g.FontSize, draw_pos, col, buf_display, buf_display_end, word_wrap_width, is_multiline ? NULL : &clip_rect);
         }
     }
 

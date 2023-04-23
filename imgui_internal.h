@@ -1166,6 +1166,7 @@ struct IMGUI_API ImGuiInputTextState
     bool                    ReloadUserBuf;          // force a reload of user buf so it may be modified externally. may be automatic in future version.
     int                     ReloadSelectionStart;   // POSITIONS ARE IN IMWCHAR units *NOT* UTF-8 this is why this is not exposed yet.
     int                     ReloadSelectionEnd;
+    float                   WordWrapWidth;
 
     ImGuiInputTextState();
     ~ImGuiInputTextState();
@@ -1173,6 +1174,8 @@ struct IMGUI_API ImGuiInputTextState
     void        ClearFreeMemory()           { TextA.clear(); InitialTextA.clear(); }
     void        OnKeyPressed(int key);      // Cannot be inline because we call in code in stb_textedit.h implementation
     void        OnCharPressed(unsigned int c);
+
+    bool        HasWordWrap() const         { return WordWrapWidth > 0.0; }
 
     // Cursor & Selection
     void        CursorAnimReset();
