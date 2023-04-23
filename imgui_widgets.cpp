@@ -4211,7 +4211,6 @@ static ImVec2 InputTextCalcTextSize(ImGuiContext* ctx, const char* text_begin, c
     ImVec2 text_size = ImVec2(0, 0);
     float line_width = 0.0f;
 
-    const float wrap_width = word_wrap_width;
     const bool word_wrap_enabled = (wrap_width > 0.0f);
     const char* word_wrap_eol = NULL;
 
