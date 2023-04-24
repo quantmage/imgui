@@ -4062,7 +4062,7 @@ static const char* CalcWordWrapPosition(const ImFont* font, float scale, const c
             }
         }
 
-        const float char_width = font->GetCharAdvance(c) * scale;
+        const float char_width = font->GetCharAdvance(c);
         if (ImCharIsBlankW(c))
         {
             if (inside_word)
