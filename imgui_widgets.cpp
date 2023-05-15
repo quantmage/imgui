@@ -4839,6 +4839,11 @@ static ImVec2 InputTextLineIndexGetPosOffset(ImGuiContext& g, ImGuiInputTextStat
     return offset;
 }
 
+void ImGui::ResetActiveInputText(const char* reset_buf, ImGuiTextResetType reset_type) {
+    GImGui->InputTextState.ResetBuf = reset_buf;
+    GImGui->InputTextState.ResetType = reset_type;
+}
+
 // Edit a string of text
 // - buf_size account for the zero-terminator, so a buf_size of 6 can hold "Hello" but not "Hello!".
 //   This is so we can easily call InputText() on static arrays using ARRAYSIZE() and to match
@@ -4942,6 +4947,7 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
 
     // We are only allowed to access the state if we are already the active widget.
     ImGuiInputTextState* state = GetInputTextState(id);
+    const ImGuiTextResetType reset_type = state != NULL ? state->ResetType : ImGuiTextResetType_None;
 
     if (g.LastItemData.ItemFlags & ImGuiItemFlags_ReadOnly)
         flags |= ImGuiInputTextFlags_ReadOnly;
@@ -4986,29 +4992,32 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         state->Stb->select_start = state->ReloadSelectionStart;
         state->Stb->cursor = state->Stb->select_end = state->ReloadSelectionEnd; // will be clamped to bounds below
     }
-    else if ((init_make_active && g.ActiveId != id) || init_changed_specs)
+    else if ((init_make_active && g.ActiveId != id) || init_changed_specs || reset_type != ImGuiTextResetType_None)
     {
         // Access state even if we don't own it yet.
         state = &g.InputTextState;
         state->CursorAnimReset();
+        const char* buf2 = reset_type != ImGuiTextResetType_None ? state->ResetBuf : buf;
+        state->ResetType = ImGuiTextResetType_None;
+        state->ResetBuf = NULL;
 
         // Backup state of deactivating item so they'll have a chance to do a write to output buffer on the same frame they report IsItemDeactivatedAfterEdit (#4714)
         InputTextDeactivateHook(state->ID);
 
         // Take a copy of the initial buffer value.
         // From the moment we focused we are normally ignoring the content of 'buf' (unless we are in read-only mode)
-        const int buf_len = (int)ImStrlen(buf);
+        const int buf_len = (int)ImStrlen(buf2);
         IM_ASSERT(((buf_len + 1 <= buf_size) || (buf_len == 0 && buf_size == 0)) && "Is your input buffer properly zero-terminated?");
         if (!user_scroll_finish)
         {
             state->TextToRevertTo.resize(buf_len + 1);    // UTF-8. we use +1 to make sure that .Data is always pointing to at least an empty string.
-            memcpy(state->TextToRevertTo.Data, buf, buf_len + 1);
+            memcpy(state->TextToRevertTo.Data, buf2, buf_len + 1);
         }
 
         // Preserve cursor position and undo/redo stack if we come back to same widget
         // FIXME: Since we reworked this on 2022/06, may want to differentiate recycle_cursor vs recycle_undostate?
-        bool recycle_state = (state->ID == id && !init_changed_specs);
-        if (recycle_state && (state->TextLen != buf_len || (state->TextA.Data == NULL || strncmp(state->TextA.Data, buf, buf_len) != 0)))
+        bool recycle_state = (state->ID == id && !init_changed_specs && reset_type == ImGuiTextResetType_None);
+        if (recycle_state && (state->TextLen != buf_len || (state->TextA.Data == NULL || strncmp(state->TextA.Data, buf2, buf_len) != 0)))
             recycle_state = false;
 
         // Start edition
@@ -5018,20 +5027,47 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         if (!is_readonly)
         {
             state->TextA.resize(buf_size + 1); // we use +1 to make sure that .Data is always pointing to at least an empty string.
-            memcpy(state->TextA.Data, buf, state->TextLen + 1);
+            memcpy(state->TextA.Data, buf2, state->TextLen + 1);
         }
 
         // Find initial scroll position for right alignment
         state->Scroll = ImVec2(0.0f, 0.0f);
         if (flags & ImGuiInputTextFlags_ElideLeft)
-            state->Scroll.x += ImMax(0.0f, CalcTextSize(buf).x - frame_size.x + style.FramePadding.x * 2.0f);
+            state->Scroll.x += ImMax(0.0f, CalcTextSize(buf2).x - frame_size.x + style.FramePadding.x * 2.0f);
 
         // Recycle existing cursor/selection/undo stack but clamp position
         // Note a single mouse click will override the cursor/position immediately by calling stb_textedit_click handler.
         if (!recycle_state)
+        {
             stb_textedit_initialize_state(state->Stb, !is_multiline);
 
-        if (!is_multiline)
+            const int last_cursor = state->Stb->cursor;
+            const int last_select_start = state->Stb->select_start;
+            const int last_select_end = state->Stb->select_end;
+
+            switch (reset_type)
+            {
+            case ImGuiTextResetType_KeepSelection:
+                state->Stb->cursor = last_cursor;
+                state->Stb->select_start = last_select_start;
+                state->Stb->select_end = last_select_end;
+                state->CursorClamp();
+                break;
+            case ImGuiTextResetType_SelectAll:
+                select_all = true;
+                break;
+            case ImGuiTextResetType_MoveCursorToStart:
+                state->Stb->cursor = 0;
+                state->ClearSelection();
+                break;
+            case ImGuiTextResetType_MoveCursorToEnd:
+                state->Stb->cursor = state->TextLen;
+                state->ClearSelection();
+                break;
+            }
+        }
+
+        if (!is_multiline && reset_type == ImGuiTextResetType_None)
         {
             if (flags & ImGuiInputTextFlags_AutoSelectAll)
                 select_all = true;
