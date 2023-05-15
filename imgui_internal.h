@@ -190,6 +190,7 @@ struct ImGuiWindowSettings;         // Storage for a window .ini settings (we ke
 enum ImGuiLocKey : int;                 // -> enum ImGuiLocKey              // Enum: a localization entry for translation.
 typedef int ImGuiDataAuthority;         // -> enum ImGuiDataAuthority_      // Enum: for storing the source authority (dock node vs window) of a field
 typedef int ImGuiLayoutType;            // -> enum ImGuiLayoutType_         // Enum: Horizontal or vertical
+typedef int ImGuiTextResetType;         // -> enum ImGuiTextResetType_      // Enum: To control cursor behavior when performing text reinitialization
 
 // Flags
 typedef int ImGuiActivateFlags;         // -> enum ImGuiActivateFlags_      // Flags: for navigation/focus function (will be for ActivateItem() later)
@@ -1027,6 +1028,15 @@ enum ImGuiTooltipFlags_
     ImGuiTooltipFlags_OverridePrevious          = 1 << 1,   // Clear/ignore previously submitted tooltip (defaults to append)
 };
 
+enum ImGuiTextResetType_
+{
+    ImGuiTextResetType_None                = 0,
+    ImGuiTextResetType_KeepSelection       = 1,            // Attempt to keep the same selected character from before the reset
+    ImGuiTextResetType_SelectAll           = 2,
+    ImGuiTextResetType_MoveCursorToStart   = 3,
+    ImGuiTextResetType_MoveCursorToEnd     = 4
+};
+
 // FIXME: this is in development, not exposed/functional as a generic feature yet.
 // Horizontal/Vertical enums are fixed to 0/1 so they may be used to index ImVec2
 enum ImGuiLayoutType_
@@ -1167,6 +1177,8 @@ struct IMGUI_API ImGuiInputTextState
     int                     ReloadSelectionStart;   // POSITIONS ARE IN IMWCHAR units *NOT* UTF-8 this is why this is not exposed yet.
     int                     ReloadSelectionEnd;
     float                   WordWrapWidth;
+    const char*             ResetBuf;
+    ImGuiTextResetType      ResetType;              // Force text input to reset its state from the given data (|ResetBuf|) next update.
 
     ImGuiInputTextState();
     ~ImGuiInputTextState();
@@ -3797,6 +3809,7 @@ namespace ImGui
     // [/ADAPT_IMGUI_BUNDLE]
     IMGUI_API void          InputTextDeactivateHook(ImGuiID id);
     IMGUI_API bool          TempInputScalar(const ImRect& bb, ImGuiID id, const char* label, ImGuiDataType data_type, void* p_data, const char* format, const void* p_clamp_min = NULL, const void* p_clamp_max = NULL);
+    IMGUI_API void          ResetActiveInputText(const char* reset_buf, ImGuiTextResetType reset_type);
     inline bool             TempInputIsActive(ImGuiID id)       { ImGuiContext& g = *GImGui; return (g.ActiveId == id && g.TempInputId == id); }
     inline ImGuiInputTextState* GetInputTextState(ImGuiID id)   { ImGuiContext& g = *GImGui; return (id != 0 && g.InputTextState.ID == id) ? &g.InputTextState : NULL; } // Get input text state if active
     IMGUI_API void          SetNextItemRefVal(ImGuiDataType data_type, void* p_data);
