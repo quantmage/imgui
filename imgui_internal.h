@@ -1179,6 +1179,7 @@ struct IMGUI_API ImGuiInputTextState
     float                   WordWrapWidth;
     const char*             ResetBuf;
     ImGuiTextResetType      ResetType;              // Force text input to reset its state from the given data (|ResetBuf|) next update.
+    bool                    CutRequested, CopyRequested, PasteRequested, UndoRequested, RedoRequested, SelectAllRequested;
 
     ImGuiInputTextState();
     ~ImGuiInputTextState();
@@ -3810,6 +3811,12 @@ namespace ImGui
     IMGUI_API void          InputTextDeactivateHook(ImGuiID id);
     IMGUI_API bool          TempInputScalar(const ImRect& bb, ImGuiID id, const char* label, ImGuiDataType data_type, void* p_data, const char* format, const void* p_clamp_min = NULL, const void* p_clamp_max = NULL);
     IMGUI_API void          ResetActiveInputText(const char* reset_buf, ImGuiTextResetType reset_type);
+    IMGUI_API void          TriggerCut();
+    IMGUI_API void          TriggerCopy();
+    IMGUI_API void          TriggerPaste();
+    IMGUI_API void          TriggerUndo();
+    IMGUI_API void          TriggerRedo();
+    IMGUI_API void          TriggerSelectAll();
     inline bool             TempInputIsActive(ImGuiID id)       { ImGuiContext& g = *GImGui; return (g.ActiveId == id && g.TempInputId == id); }
     inline ImGuiInputTextState* GetInputTextState(ImGuiID id)   { ImGuiContext& g = *GImGui; return (id != 0 && g.InputTextState.ID == id) ? &g.InputTextState : NULL; } // Get input text state if active
     IMGUI_API void          SetNextItemRefVal(ImGuiDataType data_type, void* p_data);
