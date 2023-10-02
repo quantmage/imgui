@@ -2935,7 +2935,7 @@ struct IMGUI_API ImGuiTabBar
 //-----------------------------------------------------------------------------
 
 #define IM_COL32_DISABLE                IM_COL32(0,0,0,1)   // Special sentinel code which cannot be used as a regular color.
-#define IMGUI_TABLE_MAX_COLUMNS         512                 // May be further lifted
+#define IMGUI_TABLE_MAX_COLUMNS         1024                // May be further lifted
 
 // Our current column maximum is 64 but we may raise that in the future.
 typedef ImS16 ImGuiTableColumnIdx;
