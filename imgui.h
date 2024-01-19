@@ -86,6 +86,7 @@ struct ImGuiNpBuffer
 #endif // IMGUI_BUNDLE_PYTHON_UNSUPPORTED_API
 // [/ADAPT_IMGUI_BUNDLE] utilities
 
+
 /*
 Index of this file:
 // [SECTION] Header mess
