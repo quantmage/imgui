@@ -4954,29 +4954,29 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         {
             state->Scroll = ImVec2(0.0f, 0.0f);
 
-            const int last_cursor = state->Stb.cursor;
-            const int last_select_start = state->Stb.select_start;
-            const int last_select_end = state->Stb.select_end;
+            const int last_cursor = state->Stb->cursor;
+            const int last_select_start = state->Stb->select_start;
+            const int last_select_end = state->Stb->select_end;
 
             stb_textedit_initialize_state(state->Stb, !is_multiline);
 
             switch (reset_type)
             {
             case ImGuiTextResetType_KeepSelection:
-                state->Stb.cursor = last_cursor;
-                state->Stb.select_start = last_select_start;
-                state->Stb.select_end = last_select_end;
+                state->Stb->cursor = last_cursor;
+                state->Stb->select_start = last_select_start;
+                state->Stb->select_end = last_select_end;
                 state->CursorClamp();
                 break;
             case ImGuiTextResetType_SelectAll:
                 select_all = true;
                 break;
             case ImGuiTextResetType_MoveCursorToStart:
-                state->Stb.cursor = 0;
+                state->Stb->cursor = 0;
                 state->ClearSelection();
                 break;
             case ImGuiTextResetType_MoveCursorToEnd:
-                state->Stb.cursor = state->CurLenW;
+                state->Stb->cursor = state->CurLenA;
                 state->ClearSelection();
                 break;
             }
@@ -5587,14 +5587,14 @@ bool ImGui::InputTextEx(const char* label, const char* hint, char* buf, int buf_
         {
             // Find input local positions of 'cursor' (slot 0) and 'select_start' (slot 1) positions.
             if(render_cursor) {
-                const char* cursor_ptr = text_begin + state->Stb.cursor;
+                const char* cursor_ptr = text_begin + state->Stb->cursor;
                 ImVec2 cursor_pos = FindCharPosition(text_begin, cursor_ptr, text_end, word_wrap_width);
                 cursor_offset.x = cursor_pos.x;
                 cursor_offset.y = cursor_pos.y;
             }
             if (render_selection)
             {
-                const char* selection_ptr = text_begin + ImMin(state->Stb.select_start, state->Stb.select_end);
+                const char* selection_ptr = text_begin + ImMin(state->Stb->select_start, state->Stb->select_end);
                 ImVec2 selection_pos = FindCharPosition(text_begin, selection_ptr, text_end, word_wrap_width);
                 select_start_offset.x = selection_pos.x;
                 select_start_offset.y = selection_pos.y;
