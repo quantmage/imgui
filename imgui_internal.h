@@ -3166,7 +3166,6 @@ struct IMGUI_API ImGuiTabBar
 // Our current column maximum is 64 but we may raise that in the future.
 typedef ImS16 ImGuiTableColumnIdx;
 typedef ImU16 ImGuiTableDrawChannelIdx;
->>>>>>> 9ac1b3e31 (Increase table max columns to 8192 from 2048)
 
 // [Internal] sizeof() ~ 112
 // We use the terminology "Enabled" to refer to a column that is not Hidden by user/api.
